@@ -8,9 +8,13 @@ from pymongo import MongoClient
 from datetime import datetime
 
 from sklearn import cross_validation
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble.forest import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.neighbors.classification import KNeighborsClassifier
+from sklearn.svm.classes import SVC
+from sklearn.tree.tree import DecisionTreeClassifier
 
 from config import config
 
@@ -271,23 +275,31 @@ class Database:
 
         if classifier_name == "MultinomialNB":
             classifier = MultinomialNB()
+        elif classifier_name == "GaussianNB":
+            classifier = GaussianNB()
         elif classifier_name == "KNeighbors":
             n_neighbors = 4
             classifier = KNeighborsClassifier(n_neighbors)
-
+        elif classifier_name == "SVC":
+            classifier = SVC(kernel="linear", C=0.025)
+        elif classifier_name == "DecisionTree":
+            classifier = DecisionTreeClassifier(max_depth=5)
+        elif classifier_name == "RandomForest":
+            classifier = RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
+        elif classifier_name == "LinearDiscriminantAnalysis":
+            classifier = LinearDiscriminantAnalysis()
 
         np.random.seed(1337)
-        rounds = 3
-        window_count = 100000
+        window_count = 10000
         print("Creating", window_count, "windows...")
 
         train_X_source, train_y_source = self.find_article_windows(3, 3, window_count)
 
         vectorizer = CountVectorizer(analyzer="word",
-                                         tokenizer=None,
-                                         preprocessor=None,
-                                         stop_words=None,
-                                         max_features=None)
+                                     tokenizer=None,
+                                     preprocessor=None,
+                                     stop_words=None,
+                                     max_features=None)
 
         train_X = vectorizer.fit_transform(train_X_source).toarray()
         train_y = train_y_source
@@ -350,7 +362,7 @@ class Database:
         :param window_length: The length of every single window.
         """
 
-        if window_count%2 > 0:
+        if window_count % 2 > 0:
             raise Exception("Window count needs to be even.")
 
         start_index = 0
@@ -376,10 +388,10 @@ class Database:
                         sequence.append(word)
 
                     if len(sequence) == window_length:
-                        if s_class and len(pos_windows) < window_count/2:
+                        if s_class and len(pos_windows) < window_count / 2:
                             pos_windows.append([sequence, "missing_article"])
                         else:
-                            if not s_class and len(neg_windows) < window_count/2:
+                            if not s_class and len(neg_windows) < window_count / 2:
                                 neg_windows.append([sequence, "no_missing_article"])
                         sequence = []
                         s_class = False

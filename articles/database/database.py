@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import itertools
 import numpy as np
 from keras.preprocessing.text import Tokenizer
 from math import floor
@@ -15,6 +16,7 @@ from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.neighbors.classification import KNeighborsClassifier
 from sklearn.svm.classes import SVC
 from sklearn.tree.tree import DecisionTreeClassifier
+from sklearn.utils import random
 
 from config import config
 
@@ -273,27 +275,65 @@ class Database:
 
     def test(self, classifier_name="MultinomialNB"):
 
-        if classifier_name == "MultinomialNB":
-            classifier = MultinomialNB()
-        elif classifier_name == "GaussianNB":
-            classifier = GaussianNB()
-        elif classifier_name == "KNeighbors":
-            n_neighbors = 4
-            classifier = KNeighborsClassifier(n_neighbors)
-        elif classifier_name == "SVC":
-            classifier = SVC(kernel="linear", C=0.025)
-        elif classifier_name == "DecisionTree":
-            classifier = DecisionTreeClassifier(max_depth=5)
-        elif classifier_name == "RandomForest":
-            classifier = RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
-        elif classifier_name == "LinearDiscriminantAnalysis":
-            classifier = LinearDiscriminantAnalysis()
+        classifiers = [
+            ("MultinomialNB", MultinomialNB()),
+            ("GaussianNB", GaussianNB()),
+            ("KNeighbors", KNeighborsClassifier(4)),
+            ("SVC", SVC(kernel="linear", C=0.025)),
+            ("DecisionTree", DecisionTreeClassifier(max_depth=5)),
+            ("RandomForest", RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)),
+        ]
+
+        for name, object in classifiers:
+            if name == classifier_name:
+                classifier = object
+                break
 
         np.random.seed(1337)
         window_count = 10000
-        print("Creating", window_count, "windows...")
+        before_article = 0
+        following_article = 6
 
-        train_X_source, train_y_source = self.find_article_windows(3, 3, window_count)
+        print("Creating", window_count, "windows with " + str(before_article) + " before and " + str(
+            following_article) + " words following the article.")
+
+        train_X_source, train_y_source = self.find_article_windows(before_article, following_article, window_count)
+
+        c = list(zip(train_X_source, train_y_source))
+
+        np.random.shuffle(c)
+
+        train_X_source, train_y_source = zip(*c)
+
+        print("done")
+
+        print("Examples:")
+        shown_classes_none = 0
+        shown_classes_a = 0
+        shown_classes_an = 0
+        shown_classes_the = 0
+        for sentence, class_name in itertools.izip(train_X_source, train_y_source):
+            if class_name == "a":
+                if shown_classes_a < 3:
+                    print(sentence + ": " + class_name)
+                    shown_classes_a += 1
+            if class_name == "an":
+                if shown_classes_an < 3:
+                    print(sentence + ": " + class_name)
+                    shown_classes_an += 1
+            if class_name == "the":
+                if shown_classes_the < 3:
+                    print(sentence + ": " + class_name)
+                    shown_classes_the += 1
+            if class_name == "none":
+                if shown_classes_none < 3:
+                    print(sentence + ": " + class_name)
+                    shown_classes_none += 1
+            if shown_classes_none >= 3 and shown_classes_a >= 3 \
+                    and shown_classes_none >= 3 and shown_classes_the >= 3:
+                break
+
+        print()
 
         vectorizer = CountVectorizer(analyzer="word",
                                      tokenizer=None,
@@ -306,9 +346,16 @@ class Database:
 
         cv = 10
 
-        print("testing " + classifier_name + "...")
-        scores = cross_validation.cross_val_score(classifier, train_X, train_y, cv=cv, scoring='accuracy', n_jobs=2)
-        print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+        if classifier_name == "all":
+            for name, classifier in classifiers:
+                print("testing " + name + "...")
+                scores = cross_validation.cross_val_score(classifier, train_X, train_y, cv=cv, scoring='accuracy',
+                                                          n_jobs=2)
+                print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+        else:
+            print("testing " + classifier_name + "...")
+            scores = cross_validation.cross_val_score(classifier, train_X, train_y, cv=cv, scoring='accuracy', n_jobs=2)
+            print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
     def find_article_windows(self, word_count_previous, word_count_following, window_count):
         """Find windows surrounding an article of class a, an, the.

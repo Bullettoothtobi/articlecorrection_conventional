@@ -25,4 +25,4 @@ if __name__ == '__main__':
         db.show_words()
 
     if opts.test:
-        db.test(opts.test)
+        db.test(classifier_name=opts.test, confusion=opts.confusion, report=opts.report)

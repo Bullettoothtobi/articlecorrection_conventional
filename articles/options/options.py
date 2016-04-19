@@ -20,6 +20,14 @@ class Options:
         parser.add_option('--test',
                           dest='test',
                           help='Test specific classifiers')
+        parser.add_option('--confusion',
+                          dest='confusion',
+                          action="store_true",
+                          help='Show confusion matrix.')
+        parser.add_option('--report',
+                          dest='report',
+                          action="store_true",
+                          help='Show full classification report.')
         parser.add_option('--on-existence',
                           action="store_true",
                           dest='existence',

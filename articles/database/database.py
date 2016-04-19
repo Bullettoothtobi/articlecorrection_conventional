@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import itertools
+import os
+
 import numpy as np
 from keras.preprocessing.text import Tokenizer
 from math import floor
@@ -9,9 +11,11 @@ from pymongo import MongoClient
 from datetime import datetime
 
 from sklearn import cross_validation
+from sklearn.cross_validation import train_test_split
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble.forest import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.classification import confusion_matrix, classification_report
 from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.neighbors.classification import KNeighborsClassifier
 from sklearn.svm.classes import SVC
@@ -27,6 +31,8 @@ from keras.layers import Dense, Dropout, Activation
 from keras.layers import Embedding
 from keras.layers import LSTM
 from keras.layers.normalization import BatchNormalization
+
+import matplotlib.pyplot as plt
 
 import re
 
@@ -273,7 +279,7 @@ class Database:
         print('Test score:', score[0])
         print('Test accuracy:', score[1])
 
-    def test(self, classifier_name="MultinomialNB"):
+    def test(self, classifier_name="MultinomialNB", confusion=False, report=False):
 
         classifiers = [
             ("MultinomialNB", MultinomialNB()),
@@ -284,6 +290,8 @@ class Database:
             ("RandomForest", RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)),
         ]
 
+        classifier = None
+
         for name, object in classifiers:
             if name == classifier_name:
                 classifier = object
@@ -291,13 +299,17 @@ class Database:
 
         np.random.seed(1337)
         window_count = 10000
-        before_article = 0
-        following_article = 6
+        before_article = 3
+        following_article = 3
+        articles = ["a", "an", "the"]
 
         print("Creating", window_count, "windows with " + str(before_article) + " before and " + str(
             following_article) + " words following the article.")
 
-        train_X_source, train_y_source = self.find_article_windows(before_article, following_article, window_count)
+        train_X_source, train_y_source = self.find_article_windows(word_count_previous=before_article,
+                                                                   word_count_following=following_article,
+                                                                   window_count=window_count,
+                                                                   articles=articles)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -305,7 +317,7 @@ class Database:
 
         train_X_source, train_y_source = zip(*c)
 
-        print("done")
+        print("Done")
 
         print("Examples:")
         shown_classes_none = 0
@@ -346,18 +358,70 @@ class Database:
 
         cv = 10
 
+        class_names = articles + ["none"]
+
         if classifier_name == "all":
             for name, classifier in classifiers:
-                print("testing " + name + "...")
-                scores = cross_validation.cross_val_score(classifier, train_X, train_y, cv=cv, scoring='accuracy',
-                                                          n_jobs=2)
-                print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
-        else:
-            print("testing " + classifier_name + "...")
-            scores = cross_validation.cross_val_score(classifier, train_X, train_y, cv=cv, scoring='accuracy', n_jobs=2)
-            print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
-    def find_article_windows(self, word_count_previous, word_count_following, window_count):
+                if confusion:
+                    print("Creating confusion matrix for " + name + "...")
+                    self.print_confusion_matrix(classifier=classifier, class_names=class_names,
+                                            classifier_name=name, train_X=train_X,
+                                            train_y=train_y)
+                else:
+                    print("Testing " + name + "...")
+                    # scores = cross_validation.cross_val_score(classifier, train_X, train_y,
+                    #                                           cv=cv, scoring='f1_weighted', n_jobs=1,)
+                    # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+                    train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
+                    pred_y = classifier.fit(train_X, train_y).predict(test_x)
+                    print(classification_report(y_true=test_y, y_pred=pred_y, target_names=class_names))
+        else:
+            if confusion:
+                self.print_confusion_matrix(classifier=classifier, class_names=class_names,
+                                            classifier_name=classifier_name, train_X=train_X,
+                                            train_y=train_y)
+            else:
+                print("Testing " + classifier_name + "...")
+                # scores = cross_validation.cross_val_score(classifier, train_X, train_y,
+                #                                           cv=cv, scoring='f1_weighted', n_jobs=1)
+                # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+                train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
+                pred_y = classifier.fit(train_X, train_y).predict(test_x)
+                print(classification_report(y_true=test_y, y_pred=pred_y, target_names=class_names))
+
+    def print_confusion_matrix(self, classifier, classifier_name, class_names, train_X, train_y):
+        train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
+        pred_y = classifier.fit(train_X, train_y).predict(test_x)
+        cm = confusion_matrix(test_y, pred_y)
+        np.set_printoptions(precision=2)
+        print('Confusion matrix, without normalization')
+        print(cm)
+        plt.figure()
+        title = "Confusion matrix for " + classifier_name
+        self.plot_confusion_matrix(cm, class_names, title=title)
+        print("save")
+        path = "images/"
+        try:
+            os.makedirs(path)
+        except OSError:
+            if not os.path.isdir(path):
+                raise
+        plt.savefig(path + "confusion_" + classifier_name + ".png")
+        print("done")
+
+    def plot_confusion_matrix(self, cm, target_names, title='Confusion matrix', cmap=plt.cm.Blues):
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+        tick_marks = np.arange(len(target_names))
+        plt.xticks(tick_marks, target_names, rotation=45)
+        plt.yticks(tick_marks, target_names)
+        plt.tight_layout()
+        plt.ylabel('Class')
+        plt.xlabel('Prediction')
+
+    def find_article_windows(self, word_count_previous, word_count_following, window_count, articles):
         """Find windows surrounding an article of class a, an, the.
         :param word_count_previous: The words previous to the article within the same sentence.
         :param window_count: The number of windows to be returned.
@@ -369,7 +433,6 @@ class Database:
         stop_index = size
         train_X = []
         train_y = []
-        articles = ["a", "an", "the"]
         while len(train_X) < window_count:
             sentences = self.db["sentences"].find()[start_index:stop_index]
             start_index += size

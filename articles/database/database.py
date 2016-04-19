@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import itertools
 import os
+from collections import Counter
 
 import numpy as np
 from keras.preprocessing.text import Tokenizer
@@ -324,27 +325,35 @@ class Database:
         shown_classes_a = 0
         shown_classes_an = 0
         shown_classes_the = 0
+        counter = Counter()
         for sentence, class_name in itertools.izip(train_X_source, train_y_source):
             if class_name == "a":
+
+                counter.update(["a"])
                 if shown_classes_a < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_a += 1
             if class_name == "an":
+                counter.update(["an"])
                 if shown_classes_an < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_an += 1
             if class_name == "the":
+                counter.update(["the"])
                 if shown_classes_the < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_the += 1
             if class_name == "none":
+                counter.update(["none"])
                 if shown_classes_none < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_none += 1
-            if shown_classes_none >= 3 and shown_classes_a >= 3 \
-                    and shown_classes_none >= 3 and shown_classes_the >= 3:
-                break
+            # if shown_classes_none >= 3 and shown_classes_a >= 3 \
+            #         and shown_classes_none >= 3 and shown_classes_the >= 3:
+            #     break
 
+        print()
+        print(counter)
         print()
 
         vectorizer = CountVectorizer(analyzer="word",
@@ -422,7 +431,7 @@ class Database:
         plt.xlabel('Prediction')
 
     def find_article_windows(self, word_count_previous, word_count_following, window_count, articles):
-        """Find windows surrounding an article of class a, an, the.
+        """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
         :param window_count: The number of windows to be returned.
         :param word_count_following: The words following the article within the same sentence.
@@ -433,6 +442,13 @@ class Database:
         stop_index = size
         train_X = []
         train_y = []
+
+        class_size = round(window_count/4)
+
+        print("building class support of", class_size, "each...")
+
+        counter = Counter()
+
         while len(train_X) < window_count:
             sentences = self.db["sentences"].find()[start_index:stop_index]
             start_index += size
@@ -446,16 +462,20 @@ class Database:
                             and index + word_count_following + 1 < word_count:
                         sequence = words[index - word_count_previous: index] + \
                                    words[index + 1: index + word_count_following + 1]
-                        train_X.append(" ".join(sequence))
-                        train_y.append(words[index])
-                        if len(train_X) == window_count:
-                            return train_X, train_y
+                        if counter[words[index]] < class_size:
+                            counter.update([words[index]])
+                            train_X.append(" ".join(sequence))
+                            train_y.append(words[index])
+                            if len(train_X) == window_count:
+                                return train_X, train_y
                     else:
                         sequence = words[index - word_count_previous: index + word_count_following]
-                        train_X.append(" ".join(sequence))
-                        train_y.append("none")
-                        if len(train_X) == window_count:
-                            return train_X, train_y
+                        if counter["none"] < class_size:
+                            counter.update(["none"])
+                            train_X.append(" ".join(sequence))
+                            train_y.append("none")
+                            if len(train_X) == window_count:
+                                return train_X, train_y
 
         return train_X, train_y
 

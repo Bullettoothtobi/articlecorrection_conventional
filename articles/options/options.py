@@ -24,6 +24,10 @@ class Options:
                           dest='confusion',
                           action="store_true",
                           help='Show confusion matrix.')
+        parser.add_option('--on-pos',
+                          dest='on_pos',
+                          action="store_true",
+                          help='Test on part of speech')
         parser.add_option('--report',
                           dest='report',
                           action="store_true",

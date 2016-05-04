@@ -301,7 +301,7 @@ class Database:
                 break
 
         np.random.seed(1337)
-        window_count = 10000
+        window_count = 100000
         before_article = 3
         following_article = 3
         articles = ["a", "an", "the"]

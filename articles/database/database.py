@@ -35,7 +35,11 @@ from keras.layers import Embedding
 from keras.layers import LSTM
 from keras.layers.normalization import BatchNormalization
 
+from g2p_seq2seq import g2p
+
 import matplotlib.pyplot as plt
+
+import tensorflow as tf
 
 import re
 
@@ -450,7 +454,8 @@ class Database:
             window_count, articles,
             on_pos=False,
             app_pos=False,
-            app_arpabet=False
+            app_arpabet=False,
+            app_phoneme=True
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -474,6 +479,16 @@ class Database:
         if app_arpabet:
             arpabet = nltk.corpus.cmudict.dict()
 
+        if app_phoneme:
+            print("starting theano session")
+            sess = tf.Session()
+            g2p.FLAGS.model="data/g2p-seq2seq-cmudict"
+            gr_vocab, rev_ph_vocab, model = g2p.get_vocabs_load_model(sess=sess)
+            # seq = g2p.decode_word("university", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab)
+            # print("university:", seq.split(" ")[0])
+            # seq = g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab)
+            # print("unofficial:", seq.split(" ")[0])
+
         while len(train_X) < window_count:
             sentences = self.db["sentences"].find()[start_index:stop_index]
             start_index += size
@@ -482,11 +497,14 @@ class Database:
 
                 words = self.text2words(sentence["sentence"].encode("utf8"))
                 pos_words = [x[1] for x in nltk.pos_tag(words, "universal")] if on_pos is True or app_pos is True else None
+
                 arpabet_words = []
                 if app_arpabet:
                     for word in words:
                         if word in arpabet:
                             arpabet_words.append(arpabet[word][0][0])
+
+                phoneme = [x[0] for x in g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")] if app_phoneme is True else None
 
                 word_count = len(words)
                 for index, word in enumerate(words):
@@ -508,6 +526,10 @@ class Database:
                             sequence = sequence + arpabet_words[index - word_count_previous: index] + \
                                        arpabet_words[index + 1: index + word_count_following + 1]
 
+                        if app_phoneme:
+                            sequence = sequence + phoneme[index - word_count_previous: index] + \
+                                       phoneme[index + 1: index + word_count_following + 1]
+
                         if counter[words[index]] < class_size:
                             counter.update([words[index]])
                             train_X.append(" ".join(sequence))
@@ -524,6 +546,8 @@ class Database:
                             sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]
                         if app_arpabet:
                             sequence = sequence + arpabet_words[index - word_count_previous: index + word_count_following]
+                        if app_phoneme:
+                            sequence = sequence + phoneme[index - word_count_previous: index + word_count_following]
                         if counter["none"] < class_size:
                             counter.update(["none"])
                             train_X.append(" ".join(sequence))

@@ -28,6 +28,10 @@ class Options:
                           dest='on_pos',
                           action="store_true",
                           help='Test on part of speech')
+        parser.add_option('--app-pos',
+                          dest='app_pos',
+                          action="store_true",
+                          help='Test on sentence and appended part of speech')
         parser.add_option('--report',
                           dest='report',
                           action="store_true",

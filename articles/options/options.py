@@ -32,6 +32,10 @@ class Options:
                           dest='app_pos',
                           action="store_true",
                           help='Test on sentence and appended part of speech')
+        parser.add_option('--app-arpabet',
+                          dest='app_arpabet',
+                          action="store_true",
+                          help='Test on sentence and appended arpabet first phoneme')
         parser.add_option('--report',
                           dest='report',
                           action="store_true",

@@ -282,7 +282,15 @@ class Database:
         print('Test score:', score[0])
         print('Test accuracy:', score[1])
 
-    def test(self, classifier_name="MultinomialNB", confusion=False, report=False, on_pos=False, app_pos=False):
+    def test(
+            self,
+            classifier_name="MultinomialNB",
+            confusion=False,
+            report=False,
+            on_pos=False,
+            app_pos=False,
+            app_arpabet=False
+    ):
 
         classifiers = [
             ("MultinomialNB", MultinomialNB()),
@@ -314,7 +322,8 @@ class Database:
                                                                    window_count=window_count,
                                                                    articles=articles,
                                                                    on_pos=on_pos,
-                                                                   app_pos=app_pos)
+                                                                   app_pos=app_pos,
+                                                                   app_arpabet=app_arpabet)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -434,7 +443,15 @@ class Database:
         plt.ylabel('Class')
         plt.xlabel('Prediction')
 
-    def find_article_windows(self, word_count_previous, word_count_following, window_count, articles, on_pos=False, app_pos=False):
+    def find_article_windows(
+            self,
+            word_count_previous,
+            word_count_following,
+            window_count, articles,
+            on_pos=False,
+            app_pos=False,
+            app_arpabet=False
+    ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
         :param window_count: The number of windows to be returned.
@@ -453,6 +470,10 @@ class Database:
 
         counter = Counter()
 
+        arpabet = None
+        if app_arpabet:
+            arpabet = nltk.corpus.cmudict.dict()
+
         while len(train_X) < window_count:
             sentences = self.db["sentences"].find()[start_index:stop_index]
             start_index += size
@@ -461,6 +482,11 @@ class Database:
 
                 words = self.text2words(sentence["sentence"].encode("utf8"))
                 pos_words = [x[1] for x in nltk.pos_tag(words, "universal")] if on_pos is True or app_pos is True else None
+                arpabet_words = []
+                if app_arpabet:
+                    for word in words:
+                        if word in arpabet:
+                            arpabet_words.append(arpabet[word][0][0])
 
                 word_count = len(words)
                 for index, word in enumerate(words):
@@ -478,6 +504,10 @@ class Database:
                             sequence = sequence + pos_words[index - word_count_previous: index] + \
                                        pos_words[index + 1: index + word_count_following + 1]
 
+                        if app_arpabet:
+                            sequence = sequence + arpabet_words[index - word_count_previous: index] + \
+                                       arpabet_words[index + 1: index + word_count_following + 1]
+
                         if counter[words[index]] < class_size:
                             counter.update([words[index]])
                             train_X.append(" ".join(sequence))
@@ -492,6 +522,8 @@ class Database:
                             sequence = words[index - word_count_previous: index + word_count_following]
                         if app_pos:
                             sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]
+                        if app_arpabet:
+                            sequence = sequence + arpabet_words[index - word_count_previous: index + word_count_following]
                         if counter["none"] < class_size:
                             counter.update(["none"])
                             train_X.append(" ".join(sequence))

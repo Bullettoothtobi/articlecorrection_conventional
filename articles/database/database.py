@@ -45,6 +45,8 @@ import re
 
 from window.window import Window
 
+import cPickle as pickle
+
 from textblob.classifiers import NaiveBayesClassifier
 
 
@@ -293,7 +295,7 @@ class Database:
             report=False,
             on_pos=False,
             app_pos=False,
-            app_arpabet=False
+            app_phoneme=False
     ):
 
         classifiers = [
@@ -327,7 +329,7 @@ class Database:
                                                                    articles=articles,
                                                                    on_pos=on_pos,
                                                                    app_pos=app_pos,
-                                                                   app_arpabet=app_arpabet)
+                                                                   app_phoneme=app_phoneme)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -454,8 +456,7 @@ class Database:
             window_count, articles,
             on_pos=False,
             app_pos=False,
-            app_arpabet=False,
-            app_phoneme=True
+            app_phoneme=False
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -471,23 +472,21 @@ class Database:
 
         class_size = round(window_count / 4)
 
-        print("building class support of", class_size, "each...")
-
-        counter = Counter()
-
-        arpabet = None
-        if app_arpabet:
-            arpabet = nltk.corpus.cmudict.dict()
-
         if app_phoneme:
             print("starting theano session")
             sess = tf.Session()
             g2p.FLAGS.model="data/g2p-seq2seq-cmudict"
             gr_vocab, rev_ph_vocab, model = g2p.get_vocabs_load_model(sess=sess)
-            # seq = g2p.decode_word("university", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab)
-            # print("university:", seq.split(" ")[0])
-            # seq = g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab)
-            # print("unofficial:", seq.split(" ")[0])
+            arpabet = nltk.corpus.cmudict.dict()
+
+        print("building class support of", class_size, "each...")
+
+        counter = Counter()
+
+        new_words = {}
+        if os.path.isfile("data/new_words.p"):
+            new_words = pickle.load(open("data/new_words.p", "rb"))
+        new_words_count = len(new_words)
 
         while len(train_X) < window_count:
             sentences = self.db["sentences"].find()[start_index:stop_index]
@@ -498,13 +497,24 @@ class Database:
                 words = self.text2words(sentence["sentence"].encode("utf8"))
                 pos_words = [x[1] for x in nltk.pos_tag(words, "universal")] if on_pos is True or app_pos is True else None
 
-                arpabet_words = []
-                if app_arpabet:
+                phoneme = []
+                if app_phoneme:
                     for word in words:
-                        if word in arpabet:
-                            arpabet_words.append(arpabet[word][0][0])
+                        if word.isdigit():
+                            phoneme.append("-")
+                        elif word in arpabet:
+                            phoneme.append(arpabet[word][0][0])
+                        elif word in new_words:
+                            phoneme.append(new_words[word])
+                        else:
+                            new_words[word] = g2p.decode_word(word, sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")[0];
+                            phoneme.append(new_words[word])
+                            new_words_count += 1
+                            print("new (" + str(new_words_count) + "):", word, "-", new_words[word])
+                            if new_words_count % 100:
+                                pickle.dump(new_words, open("data/new_words.p", "wb"))
 
-                phoneme = [x[0] for x in g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")] if app_phoneme is True else None
+                #phoneme = [x[0] for x in g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")] if app_phoneme is True else None
 
                 word_count = len(words)
                 for index, word in enumerate(words):
@@ -522,10 +532,6 @@ class Database:
                             sequence = sequence + pos_words[index - word_count_previous: index] + \
                                        pos_words[index + 1: index + word_count_following + 1]
 
-                        if app_arpabet:
-                            sequence = sequence + arpabet_words[index - word_count_previous: index] + \
-                                       arpabet_words[index + 1: index + word_count_following + 1]
-
                         if app_phoneme:
                             sequence = sequence + phoneme[index - word_count_previous: index] + \
                                        phoneme[index + 1: index + word_count_following + 1]
@@ -535,6 +541,8 @@ class Database:
                             train_X.append(" ".join(sequence))
                             train_y.append(words[index])
                             if len(train_X) == window_count:
+                                if new_words_count > 0:
+                                    pickle.dump(new_words, open("data/new_words.p", "wb"))
                                 return train_X, train_y
                     else:
                         sequence = None
@@ -544,8 +552,6 @@ class Database:
                             sequence = words[index - word_count_previous: index + word_count_following]
                         if app_pos:
                             sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]
-                        if app_arpabet:
-                            sequence = sequence + arpabet_words[index - word_count_previous: index + word_count_following]
                         if app_phoneme:
                             sequence = sequence + phoneme[index - word_count_previous: index + word_count_following]
                         if counter["none"] < class_size:
@@ -553,8 +559,12 @@ class Database:
                             train_X.append(" ".join(sequence))
                             train_y.append("none")
                             if len(train_X) == window_count:
+                                if new_words.len > 0:
+                                    pickle.dump(new_words, open("data/new_words.p", "wb"))
                                 return train_X, train_y
 
+        if new_words_count > 0:
+            pickle.dump(new_words, open("data/new_words.p", "wb"))
         return train_X, train_y
 
     def text2words(self, raw):

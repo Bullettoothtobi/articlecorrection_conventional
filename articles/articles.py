@@ -26,4 +26,4 @@ if __name__ == '__main__':
 
     if opts.test:
         db.test(classifier_name=opts.test, confusion=opts.confusion, report=opts.report,
-                on_pos=opts.on_pos, app_pos=opts.app_pos, app_arpabet=opts.app_arpabet)
+                on_pos=opts.on_pos, app_pos=opts.app_pos, app_phoneme=opts.app_phoneme)

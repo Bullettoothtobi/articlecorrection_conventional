@@ -36,6 +36,10 @@ class Options:
                           dest='app_phoneme',
                           action="store_true",
                           help='Test on sentence and appended first phoneme')
+        parser.add_option('--no-source-word',
+                          dest='no_source_word',
+                          action="store_true",
+                          help='Leave out the source word when creating the vector.')
         parser.add_option('--report',
                           dest='report',
                           action="store_true",

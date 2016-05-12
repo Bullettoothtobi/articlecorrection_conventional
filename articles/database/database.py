@@ -295,7 +295,8 @@ class Database:
             report=False,
             on_pos=False,
             app_pos=False,
-            app_phoneme=False
+            app_phoneme=False,
+            no_source_word= False
     ):
 
         classifiers = [
@@ -329,7 +330,8 @@ class Database:
                                                                    articles=articles,
                                                                    on_pos=on_pos,
                                                                    app_pos=app_pos,
-                                                                   app_phoneme=app_phoneme)
+                                                                   app_phoneme=app_phoneme,
+                                                                   no_source_word=no_source_word)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -456,7 +458,8 @@ class Database:
             window_count, articles,
             on_pos=False,
             app_pos=False,
-            app_phoneme=False
+            app_phoneme=False,
+            no_source_word=False
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -521,11 +524,11 @@ class Database:
                     if word in articles \
                             and index - word_count_previous >= 0 \
                             and index + word_count_following + 1 < word_count:
-                        sequence = None
+                        sequence = []
                         if on_pos:
                             sequence = pos_words[index - word_count_previous: index] + \
                                        pos_words[index + 1: index + word_count_following + 1]
-                        else:
+                        elif not no_source_word:
                             sequence = words[index - word_count_previous: index] + \
                                        words[index + 1: index + word_count_following + 1]
                         if app_pos:
@@ -545,10 +548,10 @@ class Database:
                                     pickle.dump(new_words, open("data/new_words.p", "wb"))
                                 return train_X, train_y
                     else:
-                        sequence = None
+                        sequence = []
                         if on_pos:
                             sequence = pos_words[index - word_count_previous: index + word_count_following]
-                        else:
+                        elif not no_source_word:
                             sequence = words[index - word_count_previous: index + word_count_following]
                         if app_pos:
                             sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]

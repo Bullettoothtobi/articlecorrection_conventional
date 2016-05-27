@@ -296,7 +296,8 @@ class Database:
             on_pos=False,
             app_pos=False,
             app_phoneme=False,
-            no_source_word= False
+            no_source_word=False,
+            app_position=False
     ):
 
         classifiers = [
@@ -331,7 +332,8 @@ class Database:
                                                                    on_pos=on_pos,
                                                                    app_pos=app_pos,
                                                                    app_phoneme=app_phoneme,
-                                                                   no_source_word=no_source_word)
+                                                                   no_source_word=no_source_word,
+                                                                   app_position=app_position)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -459,7 +461,8 @@ class Database:
             on_pos=False,
             app_pos=False,
             app_phoneme=False,
-            no_source_word=False
+            no_source_word=False,
+            app_position=False
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -520,7 +523,9 @@ class Database:
                 #phoneme = [x[0] for x in g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")] if app_phoneme is True else None
 
                 word_count = len(words)
+                position = 0
                 for index, word in enumerate(words):
+                    position += 1
                     if word in articles \
                             and index - word_count_previous >= 0 \
                             and index + word_count_following + 1 < word_count:
@@ -538,6 +543,9 @@ class Database:
                         if app_phoneme:
                             sequence = sequence + phoneme[index - word_count_previous: index] + \
                                        phoneme[index + 1: index + word_count_following + 1]
+
+                        if app_position:
+                            sequence = sequence + [str(position)]
 
                         if counter[words[index]] < class_size:
                             counter.update([words[index]])
@@ -557,6 +565,8 @@ class Database:
                             sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]
                         if app_phoneme:
                             sequence = sequence + phoneme[index - word_count_previous: index + word_count_following]
+                        if app_position:
+                            sequence = sequence + ["-"]
                         if counter["none"] < class_size:
                             counter.update(["none"])
                             train_X.append(" ".join(sequence))

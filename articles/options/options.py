@@ -32,6 +32,10 @@ class Options:
                           dest='app_pos',
                           action="store_true",
                           help='Test on sentence and appended part of speech')
+        parser.add_option('--app-position',
+                          dest='app_position',
+                          action="store_true",
+                          help='Test on sentence and appended position of the article')
         parser.add_option('--app-phoneme',
                           dest='app_phoneme',
                           action="store_true",

@@ -65,4 +65,9 @@ class Options:
                           action="store_true",
                           dest='show_words',
                           help='show first 5000 words')
+        parser.add_option('--ngrams',
+                          nargs=1,
+                          dest='ngrams',
+                          default=1,
+                          help='use n-grams instead of single words')
         return parser.parse_args();

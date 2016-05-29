@@ -297,7 +297,8 @@ class Database:
             app_pos=False,
             app_phoneme=False,
             no_source_word=False,
-            app_position=False
+            app_position=False,
+            ngrams=1
     ):
 
         classifiers = [
@@ -316,6 +317,9 @@ class Database:
                 classifier = object
                 break
 
+        ngrams = int(ngrams)
+        print("ngrams:", ngrams)
+
         np.random.seed(1337)
         window_count = 10000
         before_article = 0
@@ -333,7 +337,8 @@ class Database:
                                                                    app_pos=app_pos,
                                                                    app_phoneme=app_phoneme,
                                                                    no_source_word=no_source_word,
-                                                                   app_position=app_position)
+                                                                   app_position=app_position,
+                                                                   ngrams=ngrams)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -383,7 +388,8 @@ class Database:
                                      tokenizer=None,
                                      preprocessor=None,
                                      stop_words=None,
-                                     max_features=None)
+                                     max_features=None,
+                                     ngram_range=(ngrams, ngrams))
 
         train_X = vectorizer.fit_transform(train_X_source).toarray()
         train_y = train_y_source
@@ -462,7 +468,8 @@ class Database:
             app_pos=False,
             app_phoneme=False,
             no_source_word=False,
-            app_position=False
+            app_position=False,
+            ngrams=1
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -503,6 +510,20 @@ class Database:
                 words = self.text2words(sentence["sentence"].encode("utf8"))
                 pos_words = [x[1] for x in nltk.pos_tag(words, "universal")] if on_pos is True or app_pos is True else None
 
+                # if ngrams > 1:
+                #     new_words_vector = {}
+                #     words_ngram = ""
+                #     words_ngram_count = 0
+                #     for word in words:
+                #         if words_ngram_count < ngrams:
+                #             words_ngram += " " + word
+                #             words_ngram_count += 1
+                #             if words_ngram_count == ngrams:
+                #                 new_words_vector += [words_ngram]
+                #                 new_words_vector = ""
+
+
+
                 phoneme = []
                 if app_phoneme:
                     for word in words:
@@ -527,22 +548,22 @@ class Database:
                 for index, word in enumerate(words):
                     position += 1
                     if word in articles \
-                            and index - word_count_previous >= 0 \
-                            and index + word_count_following + 1 < word_count:
+                            and index - word_count_previous*ngrams >= 0 \
+                            and index + word_count_following*ngrams + 1 < word_count:
                         sequence = []
                         if on_pos:
-                            sequence = pos_words[index - word_count_previous: index] + \
-                                       pos_words[index + 1: index + word_count_following + 1]
+                            sequence = pos_words[index - word_count_previous*ngrams: index] + \
+                                       pos_words[index + 1: index + word_count_following*ngrams + 1]
                         elif not no_source_word:
-                            sequence = words[index - word_count_previous: index] + \
-                                       words[index + 1: index + word_count_following + 1]
+                            sequence = words[index - word_count_previous*ngrams: index] + \
+                                       words[index + 1: index + word_count_following*ngrams + 1]
                         if app_pos:
-                            sequence = sequence + pos_words[index - word_count_previous: index] + \
-                                       pos_words[index + 1: index + word_count_following + 1]
+                            sequence = sequence + pos_words[index - word_count_previous*ngrams: index] + \
+                                       pos_words[index + 1: index + word_count_following*ngrams + 1]
 
                         if app_phoneme:
-                            sequence = sequence + phoneme[index - word_count_previous: index] + \
-                                       phoneme[index + 1: index + word_count_following + 1]
+                            sequence = sequence + phoneme[index - word_count_previous*ngrams: index] + \
+                                       phoneme[index + 1: index + word_count_following*ngrams + 1]
 
                         if app_position:
                             sequence = sequence + [str(position)]
@@ -558,13 +579,13 @@ class Database:
                     else:
                         sequence = []
                         if on_pos:
-                            sequence = pos_words[index - word_count_previous: index + word_count_following]
+                            sequence = pos_words[index - word_count_previous*ngrams: index + word_count_following*ngrams]
                         elif not no_source_word:
-                            sequence = words[index - word_count_previous: index + word_count_following]
+                            sequence = words[index - word_count_previous*ngrams: index + word_count_following*ngrams]
                         if app_pos:
-                            sequence = sequence + pos_words[index - word_count_previous: index + word_count_following]
+                            sequence = sequence + pos_words[index - word_count_previous*ngrams: index + word_count_following*ngrams]
                         if app_phoneme:
-                            sequence = sequence + phoneme[index - word_count_previous: index + word_count_following]
+                            sequence = sequence + phoneme[index - word_count_previous*ngrams: index + word_count_following*ngrams]
                         if app_position:
                             sequence = sequence + ["-"]
                         if counter["none"] < class_size:

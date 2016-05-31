@@ -50,9 +50,8 @@ class Options:
                           help='Show full classification report.')
         parser.add_option('--on-existence',
                           action="store_true",
-                          dest='existence',
-                          help='Naive Bayes on classes True (article removed), False(article not removed). '
-                               'Class split is 50:50')
+                          dest='on_existence',
+                          help='Test only whether an article is expected or not.')
         parser.add_option('--index',
                           action="store_true",
                           dest='index',

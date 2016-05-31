@@ -298,7 +298,8 @@ class Database:
             app_phoneme=False,
             no_source_word=False,
             app_position=False,
-            ngrams=1
+            ngrams=1,
+            on_existence=False
     ):
 
         classifiers = [
@@ -338,7 +339,8 @@ class Database:
                                                                    app_phoneme=app_phoneme,
                                                                    no_source_word=no_source_word,
                                                                    app_position=app_position,
-                                                                   ngrams=ngrams)
+                                                                   ngrams=ngrams,
+                                                                   on_existence=on_existence)
 
         c = list(zip(train_X_source, train_y_source))
 
@@ -353,6 +355,7 @@ class Database:
         shown_classes_a = 0
         shown_classes_an = 0
         shown_classes_the = 0
+        shown_classes_article = 0
         counter = Counter()
         for sentence, class_name in itertools.izip(train_X_source, train_y_source):
             if class_name == "a":
@@ -371,14 +374,16 @@ class Database:
                 if shown_classes_the < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_the += 1
+            if class_name == "article":
+                counter.update(["article"])
+                if shown_classes_article < 3:
+                    print(sentence + ": " + class_name)
+                    shown_classes_article += 1
             if class_name == "none":
                 counter.update(["none"])
                 if shown_classes_none < 3:
                     print(sentence + ": " + class_name)
                     shown_classes_none += 1
-                    # if shown_classes_none >= 3 and shown_classes_a >= 3 \
-                    #         and shown_classes_none >= 3 and shown_classes_the >= 3:
-                    #     break
 
         print()
         print(counter)
@@ -396,7 +401,7 @@ class Database:
 
         cv = 10
 
-        class_names = articles + ["none"]
+        class_names = ["article", "none"] if on_existence else articles + ["none"]
 
         if classifier_name == "all":
             for name, classifier in classifiers:
@@ -469,7 +474,8 @@ class Database:
             app_phoneme=False,
             no_source_word=False,
             app_position=False,
-            ngrams=1
+            ngrams=1,
+            on_existence=False
     ):
         """Find windows surrounding an article of class a, an, the and none.
         :param word_count_previous: The words previous to the article within the same sentence.
@@ -510,20 +516,6 @@ class Database:
                 words = self.text2words(sentence["sentence"].encode("utf8"))
                 pos_words = [x[1] for x in nltk.pos_tag(words, "universal")] if on_pos is True or app_pos is True else None
 
-                # if ngrams > 1:
-                #     new_words_vector = {}
-                #     words_ngram = ""
-                #     words_ngram_count = 0
-                #     for word in words:
-                #         if words_ngram_count < ngrams:
-                #             words_ngram += " " + word
-                #             words_ngram_count += 1
-                #             if words_ngram_count == ngrams:
-                #                 new_words_vector += [words_ngram]
-                #                 new_words_vector = ""
-
-
-
                 phoneme = []
                 if app_phoneme:
                     for word in words:
@@ -540,8 +532,6 @@ class Database:
                             print("new (" + str(new_words_count) + "):", word, "-", new_words[word])
                             if new_words_count % 100:
                                 pickle.dump(new_words, open("data/new_words.p", "wb"))
-
-                #phoneme = [x[0] for x in g2p.decode_word("unofficial", sess=sess, model=model, gr_vocab=gr_vocab, rev_ph_vocab=rev_ph_vocab).split(" ")] if app_phoneme is True else None
 
                 word_count = len(words)
                 position = 0
@@ -571,7 +561,10 @@ class Database:
                         if counter[words[index]] < class_size:
                             counter.update([words[index]])
                             train_X.append(" ".join(sequence))
-                            train_y.append(words[index])
+                            if on_existence:
+                                train_y.append("article")
+                            else:
+                                train_y.append(words[index])
                             if len(train_X) == window_count:
                                 if new_words_count > 0:
                                     pickle.dump(new_words, open("data/new_words.p", "wb"))

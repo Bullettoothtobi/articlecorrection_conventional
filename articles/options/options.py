@@ -52,6 +52,10 @@ class Options:
                           action="store_true",
                           dest='on_existence',
                           help='Test only whether an article is expected or not.')
+        parser.add_option('--two-step',
+                          action="store_true",
+                          dest='two_step',
+                          help='Test in a second step on positive results from first article existence check.')
         parser.add_option('--index',
                           action="store_true",
                           dest='index',

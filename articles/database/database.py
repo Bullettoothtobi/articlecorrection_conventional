@@ -299,8 +299,12 @@ class Database:
             no_source_word=False,
             app_position=False,
             ngrams=1,
-            on_existence=False
+            on_existence=False,
+            two_step=False
     ):
+
+        if two_step:
+            on_existence = True
 
         classifiers = [
             ("MultinomialNB", MultinomialNB()),
@@ -330,7 +334,7 @@ class Database:
         print("Creating", window_count, "windows with " + str(before_article) + " before and " + str(
             following_article) + " words following the article.")
 
-        train_X_source, train_y_source = self.find_article_windows(word_count_previous=before_article,
+        train_X_source, train_y_source, train_y_2_source = self.find_article_windows(word_count_previous=before_article,
                                                                    word_count_following=following_article,
                                                                    window_count=window_count,
                                                                    articles=articles,
@@ -342,11 +346,11 @@ class Database:
                                                                    ngrams=ngrams,
                                                                    on_existence=on_existence)
 
-        c = list(zip(train_X_source, train_y_source))
+        c = list(zip(train_X_source, train_y_source, train_y_2_source))
 
         np.random.shuffle(c)
 
-        train_X_source, train_y_source = zip(*c)
+        train_X_source, train_y_source, train_y_2_source = zip(*c)
 
         print("Done")
 
@@ -398,10 +402,13 @@ class Database:
 
         train_X = vectorizer.fit_transform(train_X_source).toarray()
         train_y = train_y_source
+        train_y_2 = train_y_2_source
 
         cv = 10
 
         class_names = ["article", "none"] if on_existence else articles + ["none"]
+
+        train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new = self.split(train_X, train_y, train_y_2, 0.33)
 
         if classifier_name == "all":
             for name, classifier in classifiers:
@@ -409,29 +416,71 @@ class Database:
                 if confusion:
                     print("Creating confusion matrix for " + name + "...")
                     self.print_confusion_matrix(classifier=classifier, class_names=class_names,
-                                                classifier_name=name, train_X=train_X,
-                                                train_y=train_y)
+                                                classifier_name=name, train_X=train_X_new,
+                                                train_y=train_y_2_new)
                 else:
                     print("Testing " + name + "...")
                     # scores = cross_validation.cross_val_score(classifier, train_X, train_y,
                     #                                           cv=cv, scoring='f1_weighted', n_jobs=1,)
                     # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
-                    train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
-                    pred_y = classifier.fit(train_X, train_y).predict(test_x)
-                    print(classification_report(y_true=test_y, y_pred=pred_y, target_names=class_names))
+                    pred_y = classifier.fit(train_X_new, train_y_new).predict(test_x_new)
+                    print(classification_report(y_true=test_y_new, y_pred=pred_y, target_names=class_names))
         else:
             if confusion:
                 self.print_confusion_matrix(classifier=classifier, class_names=class_names,
-                                            classifier_name=classifier_name, train_X=train_X,
-                                            train_y=train_y)
+                                            classifier_name=classifier_name, train_X=train_X_new,
+                                            train_y=train_y_new)
             else:
                 print("Testing " + classifier_name + "...")
                 # scores = cross_validation.cross_val_score(classifier, train_X, train_y,
                 #                                           cv=cv, scoring='f1_weighted', n_jobs=1)
                 # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
-                train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
-                pred_y = classifier.fit(train_X, train_y).predict(test_x)
-                print(classification_report(y_true=test_y, y_pred=pred_y, target_names=class_names))
+
+                pred_y = classifier.fit(train_X_new, train_y_new).predict(test_x_new)
+                print("1. Prediction:") if two_step else False
+                print(classification_report(y_true=test_y_new, y_pred=pred_y, target_names=class_names))
+
+                if two_step:
+                    print("2. Classify previous positive predictions")
+
+                    class_names = articles + ["none"]
+
+                    train_X_2 = []
+                    test_x_2 = []
+                    train_y_2 = []
+                    test_y_2 = []
+                    for pred_y_item, train_X_item, test_x_item, train_y_2_item, test_y_2_item in \
+                            zip(pred_y, train_X_new, test_x_new, train_y_2_new, test_y_2_new):
+                        if pred_y_item == "article":
+                            train_X_2.append(train_X_item)
+                            test_x_2.append(test_x_item)
+                            train_y_2.append(train_y_2_item)
+                            test_y_2.append(test_y_2_item)
+                    print("Count: " + str(len(train_y_2)))
+                    pred_y_2 = classifier.fit(train_X_2, train_y_2).predict(test_x_2)
+                    print(classification_report(y_true=test_y_2, y_pred=pred_y_2))
+
+    def split(self, train_X, train_y, train_y_2, test_split=0.33):
+        train_X_new = []
+        test_x_new = []
+        train_y_new = []
+        test_y_new = []
+        train_y_2_new = []
+        test_y_2_new = []
+
+        train_len = round(len(train_X)*(1-test_split), 0)
+
+        for train_X_item, train_y_item, train_y_2_item in zip(train_X, train_y, train_y_2):
+            if len(train_X_new) < train_len:
+                train_X_new.append(train_X_item)
+                train_y_new.append(train_y_item)
+                train_y_2_new.append(train_y_2_item)
+            else:
+                test_x_new.append(train_X_item)
+                test_y_new.append(train_y_item)
+                test_y_2_new.append(train_y_2_item)
+
+        return train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new
 
     def print_confusion_matrix(self, classifier, classifier_name, class_names, train_X, train_y):
         train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
@@ -468,7 +517,8 @@ class Database:
             self,
             word_count_previous,
             word_count_following,
-            window_count, articles,
+            window_count,
+            articles,
             on_pos=False,
             app_pos=False,
             app_phoneme=False,
@@ -488,6 +538,7 @@ class Database:
         stop_index = size
         train_X = []
         train_y = []
+        train_y_2 = []
 
         class_size = round(window_count / 4)
 
@@ -563,12 +614,13 @@ class Database:
                             train_X.append(" ".join(sequence))
                             if on_existence:
                                 train_y.append("article")
+                                train_y_2.append(words[index])
                             else:
                                 train_y.append(words[index])
                             if len(train_X) == window_count:
                                 if new_words_count > 0:
                                     pickle.dump(new_words, open("data/new_words.p", "wb"))
-                                return train_X, train_y
+                                return train_X, train_y, train_y_2
                     else:
                         sequence = []
                         if on_pos:
@@ -585,14 +637,15 @@ class Database:
                             counter.update(["none"])
                             train_X.append(" ".join(sequence))
                             train_y.append("none")
+                            train_y_2.append("none")
                             if len(train_X) == window_count:
                                 if new_words.len > 0:
                                     pickle.dump(new_words, open("data/new_words.p", "wb"))
-                                return train_X, train_y
+                                return train_X, train_y, train_y_2
 
         if new_words_count > 0:
             pickle.dump(new_words, open("data/new_words.p", "wb"))
-        return train_X, train_y
+        return train_X, train_y, train_y_2
 
     def text2words(self, raw):
         letters_only = re.sub("[^\w]", " ", raw)

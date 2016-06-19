@@ -28,4 +28,4 @@ if __name__ == '__main__':
         db.test(classifier_name=opts.test, confusion=opts.confusion, report=opts.report,
                 on_pos=opts.on_pos, app_pos=opts.app_pos, app_phoneme=opts.app_phoneme,
                 no_source_word=opts.no_source_word, app_position=opts.app_position, ngrams=opts.ngrams,
-                on_existence=opts.on_existence)
+                on_existence=opts.on_existence, two_step=opts.two_step)

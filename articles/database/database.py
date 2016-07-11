@@ -23,7 +23,7 @@ from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.neighbors.classification import KNeighborsClassifier
 from sklearn.svm.classes import SVC
 from sklearn.tree.tree import DecisionTreeClassifier
-from sklearn.utils import random
+from sklearn.utils import random, shuffle
 
 from config import config
 
@@ -312,7 +312,7 @@ class Database:
             ("KNeighbors", KNeighborsClassifier(4)),
             ("SVC", SVC(kernel="linear", C=0.025)),
             ("DecisionTree", DecisionTreeClassifier(max_depth=5)),
-            ("RandomForest", RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)),
+            ("RandomForest", RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1))
         ]
 
         classifier = None
@@ -330,6 +330,8 @@ class Database:
         before_article = 0
         following_article = 1
         articles = ["a", "an", "the"]
+        batch_size = 16
+        nb_epoch = 5
 
         print("Creating", window_count, "windows with " + str(before_article) + " before and " + str(
             following_article) + " words following the article.")
@@ -346,52 +348,39 @@ class Database:
                                                                    ngrams=ngrams,
                                                                    on_existence=on_existence)
 
-        c = list(zip(train_X_source, train_y_source, train_y_2_source))
+        print("array has", str(len(train_X_source)), "samples.")
+        print("array has", str(len(train_y_source)), " labels.")
 
-        np.random.shuffle(c)
+        # c = list(zip(train_X_source, train_y_source, train_y_2_source))
+        #
+        # np.random.shuffle(c)
+        #
+        # train_X_source, train_y_source, train_y_2_source = zip(*c)
 
-        train_X_source, train_y_source, train_y_2_source = zip(*c)
+        if two_step:
+            train_X_source, train_y_source, train_y_2_source = shuffle(train_X_source, train_y_source, train_y_2_source, random_state=42)
+        else:
+            train_X_source, train_y_source = shuffle(train_X_source, train_y_source, random_state=42)
 
         print("Done")
 
         print("Examples:")
-        shown_classes_none = 0
-        shown_classes_a = 0
-        shown_classes_an = 0
-        shown_classes_the = 0
-        shown_classes_article = 0
         counter = Counter()
+        i=0
         for sentence, class_name in itertools.izip(train_X_source, train_y_source):
-            if class_name == "a":
-
-                counter.update(["a"])
-                if shown_classes_a < 3:
-                    print(sentence + ": " + class_name)
-                    shown_classes_a += 1
-            if class_name == "an":
-                counter.update(["an"])
-                if shown_classes_an < 3:
-                    print(sentence + ": " + class_name)
-                    shown_classes_an += 1
-            if class_name == "the":
-                counter.update(["the"])
-                if shown_classes_the < 3:
-                    print(sentence + ": " + class_name)
-                    shown_classes_the += 1
-            if class_name == "article":
-                counter.update(["article"])
-                if shown_classes_article < 3:
-                    print(sentence + ": " + class_name)
-                    shown_classes_article += 1
-            if class_name == "none":
-                counter.update(["none"])
-                if shown_classes_none < 3:
-                    print(sentence + ": " + class_name)
-                    shown_classes_none += 1
+            if counter[class_name] < 3:
+                print(sentence + ": " + class_name)
+            counter.update([class_name])
 
         print()
         print(counter)
         print()
+
+        classes = []
+        for key in counter:
+            classes.append(key)
+
+        print("classes:", classes)
 
         vectorizer = CountVectorizer(analyzer="word",
                                      tokenizer=None,
@@ -400,7 +389,11 @@ class Database:
                                      max_features=None,
                                      ngram_range=(ngrams, ngrams))
 
-        train_X = vectorizer.fit_transform(train_X_source).toarray()
+        train_X = []
+        if classifier_name == "keras":
+            train_X = train_X_source
+        else:
+            train_X = vectorizer.fit_transform(train_X_source).toarray()
         train_y = train_y_source
         train_y_2 = train_y_2_source
 
@@ -408,7 +401,10 @@ class Database:
 
         class_names = ["article", "none"] if on_existence else articles + ["none"]
 
-        train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new = self.split(train_X, train_y, train_y_2, 0.33)
+        if two_step:
+            test_X_source, train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new = self.split(train_X_source, train_X, train_y, train_y_2, 0.33)
+        else:
+            train_X_new, test_x_new, train_y_new, test_y_new = train_test_split(train_X, train_y)
 
         if classifier_name == "all":
             for name, classifier in classifiers:
@@ -425,6 +421,10 @@ class Database:
                     # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
                     pred_y = classifier.fit(train_X_new, train_y_new).predict(test_x_new)
                     print(classification_report(y_true=test_y_new, y_pred=pred_y, target_names=class_names))
+        elif classifier_name == "keras":
+
+            print("Testing " + classifier_name + "...")
+
         else:
             if confusion:
                 self.print_confusion_matrix(classifier=classifier, class_names=class_names,
@@ -436,9 +436,23 @@ class Database:
                 #                                           cv=cv, scoring='f1_weighted', n_jobs=1)
                 # print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
+                print("train_X_new:", len(train_X_new))
+                print("train_y_new:", len(train_y_new))
+
                 pred_y = classifier.fit(train_X_new, train_y_new).predict(test_x_new)
+
+                # falsecount = 0
+                # for x, p, y in zip(test_X_source, pred_y, test_y_new):
+                #     if p != y:
+                #         falsecount += 1
+                #         print(x, p, y)
+                #         if falsecount == 20:
+                #             break
+
                 print("1. Prediction:") if two_step else False
                 print(classification_report(y_true=test_y_new, y_pred=pred_y, target_names=class_names))
+
+
 
                 if two_step:
                     print("2. Classify previous positive predictions")
@@ -460,27 +474,29 @@ class Database:
                     pred_y_2 = classifier.fit(train_X_2, train_y_2).predict(test_x_2)
                     print(classification_report(y_true=test_y_2, y_pred=pred_y_2))
 
-    def split(self, train_X, train_y, train_y_2, test_split=0.33):
+    def split(self, test_X_source, train_X, train_y, train_y_2, test_split=0.33):
         train_X_new = []
         test_x_new = []
         train_y_new = []
         test_y_new = []
         train_y_2_new = []
         test_y_2_new = []
+        test_X_source_new = []
 
         train_len = round(len(train_X)*(1-test_split), 0)
 
-        for train_X_item, train_y_item, train_y_2_item in zip(train_X, train_y, train_y_2):
+        for test_X_source_item, train_X_item, train_y_item, train_y_2_item in zip(test_X_source, train_X, train_y, train_y_2):
             if len(train_X_new) < train_len:
                 train_X_new.append(train_X_item)
                 train_y_new.append(train_y_item)
                 train_y_2_new.append(train_y_2_item)
+                test_X_source_new.append(test_X_source_item)
             else:
                 test_x_new.append(train_X_item)
                 test_y_new.append(train_y_item)
                 test_y_2_new.append(train_y_2_item)
 
-        return train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new
+        return test_X_source_new, train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new
 
     def print_confusion_matrix(self, classifier, classifier_name, class_names, train_X, train_y):
         train_X, test_x, train_y, test_y = train_test_split(train_X, train_y, random_state=0)
@@ -549,7 +565,7 @@ class Database:
             gr_vocab, rev_ph_vocab, model = g2p.get_vocabs_load_model(sess=sess)
             arpabet = nltk.corpus.cmudict.dict()
 
-        print("building class support of", class_size, "each...")
+        print("building class support of", class_size, "each to get", window_count, "samples.")
 
         counter = Counter()
 

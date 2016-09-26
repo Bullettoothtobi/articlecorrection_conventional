@@ -309,10 +309,10 @@ class Database:
         classifiers = [
             ("MultinomialNB", MultinomialNB()),
             ("GaussianNB", GaussianNB()),
-            ("KNeighbors", KNeighborsClassifier(4)),
-            ("SVC", SVC(kernel="linear", C=0.025)),
-            ("DecisionTree", DecisionTreeClassifier(max_depth=5)),
-            ("RandomForest", RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1))
+            # ("KNeighbors", KNeighborsClassifier(4)),
+            # ("SVC", SVC(kernel="sigmoid", C=0.025)),
+            ("DecisionTree", DecisionTreeClassifier(max_depth=500)),
+            ("RandomForest", RandomForestClassifier(max_depth=50, n_estimators=100, max_features=100))
         ]
 
         classifier = None
@@ -326,7 +326,7 @@ class Database:
         print("ngrams:", ngrams)
 
         np.random.seed(1337)
-        window_count = 10000
+        window_count = 100000
         before_article = 0
         following_article = 1
         articles = ["a", "an", "the"]
@@ -404,7 +404,7 @@ class Database:
         if two_step:
             test_X_source, train_X_new, train_y_new, train_y_2_new, test_x_new, test_y_new, test_y_2_new = self.split(train_X_source, train_X, train_y, train_y_2, 0.33)
         else:
-            train_X_new, test_x_new, train_y_new, test_y_new = train_test_split(train_X, train_y)
+            train_X_new, test_x_new, train_y_new, test_y_new = train_test_split(train_X, train_y, test_size=0.33)
 
         if classifier_name == "all":
             for name, classifier in classifiers:
@@ -506,7 +506,7 @@ class Database:
         print('Confusion matrix, without normalization')
         print(cm)
         plt.figure()
-        title = "Confusion matrix for " + classifier_name
+        title = "Confusion Matrix"
         self.plot_confusion_matrix(cm, class_names, title=title)
         print("save")
         path = "images/"
@@ -525,9 +525,9 @@ class Database:
         tick_marks = np.arange(len(target_names))
         plt.xticks(tick_marks, target_names, rotation=45)
         plt.yticks(tick_marks, target_names)
-        plt.tight_layout()
-        plt.ylabel('Class')
-        plt.xlabel('Prediction')
+        plt.ylabel('Klasse')
+        plt.xlabel('Vorhersage')
+        plt.tight_layout(h_pad=20)
 
     def find_article_windows(
             self,

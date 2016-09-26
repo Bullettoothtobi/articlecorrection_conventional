@@ -309,8 +309,8 @@ class Database:
         classifiers = [
             ("MultinomialNB", MultinomialNB()),
             ("GaussianNB", GaussianNB()),
-            # ("KNeighbors", KNeighborsClassifier(4)),
-            # ("SVC", SVC(kernel="sigmoid", C=0.025)),
+            ("KNeighbors", KNeighborsClassifier(4)),
+            ("SVC", SVC(kernel="sigmoid", C=0.025)),
             ("DecisionTree", DecisionTreeClassifier(max_depth=500)),
             ("RandomForest", RandomForestClassifier(max_depth=50, n_estimators=100, max_features=100))
         ]
